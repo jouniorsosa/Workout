@@ -994,9 +994,16 @@ function showPhase(id) {
       // First time — apply defaults to show the chip
       applyProfileToUI(getProfile());
     }
-    // Render any stored custom program (after tables initialize)
+    // Render any stored custom program, then selectors + per-day overrides
     const stored = getStoredProgram();
-    if (stored) setTimeout(() => renderCustomProgram(stored), 700);
+    if (stored) {
+      setTimeout(() => {
+        renderCustomProgram(stored);
+        setTimeout(() => { addEquipmentSelectors(); applyDayOverrides(); }, 300);
+      }, 700);
+    } else {
+      setTimeout(() => { addEquipmentSelectors(); applyDayOverrides(); }, 700);
+    }
   })();
 
 // ══════════════════════════════════════════════════════════════
@@ -1080,6 +1087,181 @@ async function regenerateProgram() {
   await triggerProgramGeneration(profile)
 }
 
+// ══════════════════════════════════════════════════════════════
+// PER-DAY EQUIPMENT SELECTOR
+// ══════════════════════════════════════════════════════════════
+
+const EQUIP_OPTIONS = [
+  { key: 'gym',        label: '🏋️ Gym' },
+  { key: 'bodyweight', label: '🤸 Bodyweight' },
+  { key: 'dumbbells',  label: '💪 Dumbbells' }
+]
+
+function buildExerciseRows(exercises) {
+  return exercises.map(ex =>
+    '<tr>' +
+    '<td>' + escHtml(ex.name) + '</td>' +
+    '<td><span class="sets-badge">' + (parseInt(ex.sets) || 3) + '</span></td>' +
+    '<td><span class="reps-badge">' + escHtml(String(ex.reps)) + '</span></td>' +
+    '<td><span class="rest-badge">' + escHtml(String(ex.rest)) + '</span></td>' +
+    '<td>' + escHtml(ex.notes || '') + '</td>' +
+    '</tr>'
+  ).join('')
+}
+
+function replaceTableContent(table, exercises) {
+  table.innerHTML =
+    '<tr><th>Exercise</th><th>Sets</th><th>Reps</th><th>Rest</th><th>Notes</th></tr>' +
+    buildExerciseRows(exercises)
+  delete table.dataset.enhanced
+  initExerciseTables()
+  setTimeout(() => applyProgramCustomization(loadProfile() || getProfile()), 100)
+}
+
+function renderDayFromProgram(cardId) {
+  const program = getStoredProgram()
+  if (!program) return false
+  const parts = cardId.split('-')
+  const wk = parseInt(parts[0].replace('w', ''))
+  const dayKey = parts.slice(1).join('-')
+  const phase = program.phases[WEEK_PHASE[wk]]
+  if (!phase || !phase.days || !phase.days[dayKey]) return false
+  const dayData = phase.days[dayKey]
+  if (!dayData || !Array.isArray(dayData.exercises) || dayData.exercises.length === 0) return false
+  const card = document.getElementById(cardId)
+  if (!card) return false
+  const table = card.querySelector('.ex-table')
+  if (!table) return false
+  replaceTableContent(table, dayData.exercises)
+  return true
+}
+
+function applyDayOverrides() {
+  let anyApplied = false
+  document.querySelectorAll('.day-card[id]').forEach(card => {
+    const cardId = card.id
+    const equip = getItem('dayEquip_' + cardId)
+    const rawExercises = getItem('dayExercisesJSON_' + cardId)
+    if (!equip || !rawExercises) return
+    try {
+      const exercises = JSON.parse(rawExercises)
+      const table = card.querySelector('.ex-table')
+      if (!table) return
+      replaceTableContent(table, exercises)
+      anyApplied = true
+      // Mark active button
+      const bar = card.querySelector('.equip-bar')
+      if (bar) {
+        bar.querySelectorAll('.equip-btn').forEach(b => b.classList.remove('active'))
+        const activeBtn = bar.querySelector('[data-equip="' + equip + '"]')
+        if (activeBtn) activeBtn.classList.add('active')
+      }
+    } catch (_) {}
+  })
+}
+
+async function handleEquipSelect(cardId, equipment, focus, btn, bar) {
+  const currentActive = bar.querySelector('.equip-btn.active')
+  const status = bar.querySelector('.equip-status')
+
+  // Clicking the already-active button → deselect / revert to default
+  if (currentActive && currentActive.dataset.equip === equipment) {
+    currentActive.classList.remove('active')
+    removeItem('dayEquip_' + cardId)
+    removeItem('dayExercisesJSON_' + cardId)
+    const reverted = renderDayFromProgram(cardId)
+    if (!reverted && status) {
+      status.textContent = 'Reload page to restore defaults'
+      setTimeout(() => { status.textContent = '' }, 4000)
+    }
+    return
+  }
+
+  // Switch to new equipment type
+  bar.querySelectorAll('.equip-btn').forEach(b => b.classList.remove('active', 'loading'))
+  btn.classList.add('active', 'loading')
+  if (status) status.textContent = '⟳ Generating…'
+
+  try {
+    const profile = loadProfile() || getProfile()
+    const wk = parseInt((cardId.split('-')[0] || 'w1').replace('w', ''))
+    const phaseNames = ['Foundation', 'Progression', 'Peak']
+    const phaseName = phaseNames[WEEK_PHASE[wk] || 0]
+
+    const res = await fetch('/api/generate-day', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile, focus, equipment, phase: phaseName })
+    })
+    if (!res.ok) throw new Error('Server error ' + res.status)
+    const data = await res.json()
+    if (!data.exercises || !data.exercises.length) throw new Error('No exercises returned')
+
+    // Persist choice
+    setItem('dayEquip_' + cardId, equipment)
+    setItemSync('dayExercisesJSON_' + cardId, JSON.stringify(data.exercises))
+
+    // Replace table
+    const card = document.getElementById(cardId)
+    const table = card && card.querySelector('.ex-table')
+    if (table) replaceTableContent(table, data.exercises)
+
+    if (status) { status.textContent = '✓ Done'; setTimeout(() => { status.textContent = '' }, 3000) }
+  } catch (err) {
+    console.error('[generate-day]', err)
+    btn.classList.remove('active')
+    if (status) { status.textContent = '⚠ Failed'; setTimeout(() => { status.textContent = '' }, 4000) }
+  } finally {
+    btn.classList.remove('loading')
+  }
+}
+
+function addEquipmentSelectors() {
+  document.querySelectorAll('.day-card[id]').forEach(card => {
+    if (card.dataset.equipAdded) return
+    const table = card.querySelector('.ex-table')
+    if (!table) return  // skip rest/cardio-only days
+    card.dataset.equipAdded = '1'
+
+    const content = card.querySelector('.day-content')
+    if (!content) return
+
+    const cardId = card.id
+    const focusEl = card.querySelector('.day-type')
+    const focus = focusEl ? focusEl.textContent.trim() : 'Workout'
+
+    const bar = document.createElement('div')
+    bar.className = 'equip-bar'
+
+    const label = document.createElement('span')
+    label.className = 'equip-label'
+    label.textContent = 'Equipment:'
+    bar.appendChild(label)
+
+    EQUIP_OPTIONS.forEach(({ key, label: btnLabel }) => {
+      const btn = document.createElement('button')
+      btn.className = 'equip-btn'
+      btn.dataset.equip = key
+      btn.textContent = btnLabel
+      btn.addEventListener('click', () => handleEquipSelect(cardId, key, focus, btn, bar))
+      bar.appendChild(btn)
+    })
+
+    const status = document.createElement('span')
+    status.className = 'equip-status'
+    bar.appendChild(status)
+
+    content.insertBefore(bar, table)
+
+    // Restore saved selection visually
+    const saved = getItem('dayEquip_' + cardId)
+    if (saved) {
+      const activeBtn = bar.querySelector('[data-equip="' + saved + '"]')
+      if (activeBtn) activeBtn.classList.add('active')
+    }
+  })
+}
+
 // Expose functions to global scope for inline onclick handlers
 window.showPhase = showPhase;
 window.showMealsPhase = showMealsPhase;
@@ -1112,6 +1294,7 @@ function refreshAllUI() {
     applyProgramCustomization(loadProfile() || getProfile());
     const stored = getStoredProgram();
     if (stored) renderCustomProgram(stored);
+    setTimeout(() => { addEquipmentSelectors(); applyDayOverrides(); }, 300);
   }, 600);
 }
 

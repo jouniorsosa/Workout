@@ -1413,6 +1413,48 @@
   .pm-regen-btn:hover { border-color: #888; color: #ddd; }
   .pm-regen-btn:disabled { opacity: 0.5; cursor: default; }
 
+  /* Equipment selector bar (per day card) */
+  .equip-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 0 12px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid #222;
+    margin-bottom: 12px;
+  }
+  .equip-label {
+    font-size: 10px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-family: 'DM Mono', monospace;
+    margin-right: 2px;
+    white-space: nowrap;
+  }
+  .equip-btn {
+    padding: 4px 12px;
+    border: 1px solid #333;
+    border-radius: 20px;
+    background: transparent;
+    color: #777;
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+  .equip-btn:hover { border-color: #666; color: #ccc; }
+  .equip-btn.active { background: var(--red); border-color: var(--red); color: #fff; }
+  .equip-btn.loading { opacity: 0.55; cursor: default; pointer-events: none; }
+  .equip-status {
+    font-size: 11px;
+    color: #666;
+    font-family: 'DM Mono', monospace;
+    margin-left: 4px;
+  }
+
   /* Profile chip in hero */
   .profile-chip {
     display: inline-flex;
