@@ -1,6 +1,8 @@
 import './style.css';
 import { setItem, getItem, removeItem, loadFromCloud, onAuthChange } from './db.js';
-import { signInWithEmail, signOut, getCurrentUser } from './supabase.js';
+import { signInWithEmail, signOut, getCurrentUser, signInWithGoogle } from './supabase.js';
+import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler } from 'chart.js';
+Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler);
 
 // Make auth functions available to inline handlers
 window.signInWithEmail = signInWithEmail;
@@ -11,6 +13,8 @@ function showPhase(id) {
     document.querySelectorAll('.phase-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     event.currentTarget.classList.add('active');
+    if (id === 'dashboard') setTimeout(initDashboard, 50);
+    if (id === 'progress') setTimeout(initProgressTab, 50);
   }
 
   function showMealsPhase(phaseId, btn) {
@@ -966,5 +970,412 @@ onAuthChange(async (event, user) => {
     if (!loaded) refreshAllUI();
   }
 });
+
+// ══════════════════════════════════════════════════════════════
+// GOOGLE OAUTH
+// ══════════════════════════════════════════════════════════════
+async function handleGoogleSignIn() {
+  const btn = document.getElementById('auth-google-btn');
+  if (btn) { btn.textContent = 'Redirecting…'; btn.disabled = true; }
+  const { error } = await signInWithGoogle();
+  if (error) {
+    let errEl = document.getElementById('auth-error-msg');
+    if (!errEl) {
+      errEl = document.createElement('p');
+      errEl.id = 'auth-error-msg';
+      errEl.style.cssText = 'color:#e63022;font-size:13px;margin-top:10px;text-align:center;';
+      btn && btn.insertAdjacentElement('afterend', errEl);
+    }
+    errEl.textContent = error.message;
+    if (btn) { btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg> Continue with Google'; btn.disabled = false; }
+  }
+}
+window.handleGoogleSignIn = handleGoogleSignIn;
+
+// ══════════════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════════════
+
+function calcStreak() {
+  if (!getItem('programStartDate')) return 0;
+  const start = new Date(getItem('programStartDate'));
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  let streak = 0;
+  let d = new Date(today);
+  while (true) {
+    const diff = Math.round((d - start) / 86400000);
+    if (diff < 0) break;
+    const entry = DAY_MAP[diff];
+    if (!entry) break;
+    const done = getItem('wday_' + entry.card) === '1';
+    if (done) { streak++; d.setDate(d.getDate() - 1); }
+    else if (d.getTime() === today.getTime()) { d.setDate(d.getDate() - 1); } // allow today incomplete
+    else break;
+  }
+  return streak;
+}
+
+function getCompletionStats() {
+  let done = 0;
+  DAY_MAP.forEach(e => { if (getItem('wday_' + e.card) === '1') done++; });
+  return { done, total: DAY_MAP.length };
+}
+
+function getRecentPRs() {
+  const prs = [];
+  document.querySelectorAll('.ex-table').forEach(table => {
+    const dayCard = table.closest('.day-card');
+    if (!dayCard) return;
+    const rows = table.querySelectorAll('tr:not(:first-child)');
+    rows.forEach((row, idx) => {
+      const saveKey = 'ex_' + dayCard.id + '_' + idx;
+      const hist = JSON.parse(getItem(saveKey + '_h') || '[]');
+      if (hist.length < 2) return;
+      const latest = hist[hist.length - 1];
+      const prev = Math.max(...hist.slice(0, -1));
+      if (latest > prev) {
+        const exNameCell = row.querySelectorAll('td')[1];
+        const name = exNameCell ? exNameCell.textContent.trim() : saveKey;
+        prs.push({ name, weight: latest });
+      }
+    });
+  });
+  return prs.slice(-6).reverse();
+}
+
+function getBadges() {
+  const { done } = getCompletionStats();
+  const streak = calcStreak();
+  const profile = loadProfile();
+  return [
+    { id: 'first-day',   icon: '🏋️', label: 'First Session',   earned: done >= 1 },
+    { id: 'one-week',    icon: '7️⃣',  label: 'One Week Done',   earned: done >= 6 },
+    { id: 'phase1',      icon: '1️⃣',  label: 'Phase 1 Complete', earned: done >= 24 },
+    { id: 'phase2',      icon: '2️⃣',  label: 'Phase 2 Complete', earned: done >= 48 },
+    { id: 'champion',    icon: '🏆', label: '12-Week Champion', earned: done >= 72 },
+    { id: 'streak7',     icon: '🔥', label: '7-Day Streak',    earned: streak >= 7 },
+    { id: 'streak30',    icon: '⚡',  label: '30-Day Streak',   earned: streak >= 30 },
+    { id: 'profiled',    icon: '👤', label: 'Profile Set',     earned: !!profile },
+    { id: 'halfway',     icon: '🎯', label: 'Halfway There',   earned: done >= 42 },
+  ];
+}
+
+function initDashboard() {
+  // Stats
+  const { done, total } = getCompletionStats();
+  const streak = calcStreak();
+  const pct = Math.round(done / total * 100);
+  const todayInfo = calcTodayInfo ? calcTodayInfo() : null;
+
+  const el = id => document.getElementById(id);
+  if (el('dash-streak')) el('dash-streak').textContent = streak;
+  if (el('dash-days-done')) el('dash-days-done').textContent = done + ' / ' + total;
+  if (el('dash-pct')) el('dash-pct').textContent = pct + '%';
+  if (el('dash-phase-val')) {
+    if (todayInfo && !todayInfo.future && !todayInfo.done) {
+      el('dash-phase-val').textContent = 'Phase ' + todayInfo.phaseNum;
+    } else { el('dash-phase-val').textContent = done > 0 ? '✓ Done' : '—'; }
+  }
+
+  // Today's workout
+  const todayEl = el('dash-today');
+  if (todayEl) {
+    if (!getItem('programStartDate')) {
+      todayEl.innerHTML = '<div class="dash-no-start">No start date set. <a onclick="openTodayModal()">Set your start date</a> to track your progress.</div>';
+    } else if (todayInfo && todayInfo.future) {
+      todayEl.innerHTML = '<div class="dash-no-start">Program hasn\'t started yet.</div>';
+    } else if (todayInfo && todayInfo.done) {
+      todayEl.innerHTML = '<div class="dash-done-msg">PROGRAM COMPLETE 🏆</div>';
+    } else if (todayInfo && todayInfo.entry) {
+      const e = todayInfo.entry;
+      const typeClass = e.label.toLowerCase().includes('push') ? 'push' : e.label.toLowerCase().includes('pull') ? 'pull' : e.label.toLowerCase().includes('leg') ? 'legs' : e.label.toLowerCase().includes('rest') ? 'rest' : e.label.toLowerCase().includes('cardio') ? 'cardio' : 'full';
+      todayEl.innerHTML = '<div class="dash-today-card" onclick="navigateToToday()"><div class="dash-today-type day-type ' + typeClass + '">' + typeClass.toUpperCase() + '</div><div class="dash-today-label">' + e.label + '</div><div class="dash-today-meta">Week ' + todayInfo.weekNum + ' · Day ' + (todayInfo.diffDays + 1) + ' of 84</div><button class="dash-today-go">GO TO WORKOUT →</button></div>';
+    } else {
+      todayEl.innerHTML = '<div class="dash-no-start">No workout data found.</div>';
+    }
+  }
+
+  // Badges
+  const badgesEl = el('dash-badges');
+  if (badgesEl) {
+    const badges = getBadges();
+    if (badges.filter(b => b.earned).length === 0) {
+      badgesEl.innerHTML = '<div class="dash-empty">Complete your first workout to earn badges.</div>';
+    } else {
+      badgesEl.innerHTML = badges.map(b =>
+        '<div class="badge-pill ' + (b.earned ? 'earned' : 'locked') + '"><span class="badge-icon">' + b.icon + '</span>' + b.label + '</div>'
+      ).join('');
+    }
+  }
+
+  // PRs
+  const prsEl = el('dash-prs');
+  if (prsEl) {
+    const prs = getRecentPRs();
+    if (prs.length === 0) {
+      prsEl.innerHTML = '<div class="dash-empty">No PRs yet. Log your weights and beat them next session!</div>';
+    } else {
+      prsEl.innerHTML = prs.map(p =>
+        '<div class="pr-card"><div class="pr-exercise">' + p.name + '</div><div class="pr-weight">' + p.weight + '<span class="pr-unit"> lbs</span></div></div>'
+      ).join('');
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// PROGRESS TAB — BODY WEIGHT CHART
+// ══════════════════════════════════════════════════════════════
+let bwChartInstance = null;
+let strengthChartInstance = null;
+
+function getBWLog() { return JSON.parse(getItem('bw_log') || '[]'); }
+function saveBWLog(log) { setItem('bw_log', JSON.stringify(log)); }
+
+function logBodyWeight() {
+  const inp = document.getElementById('prog-bw-input');
+  const dateInp = document.getElementById('prog-bw-date');
+  const val = parseFloat(inp ? inp.value : '');
+  if (!val || val < 50 || val > 600) { inp && inp.focus(); return; }
+  const date = (dateInp && dateInp.value) ? dateInp.value : new Date().toISOString().slice(0,10);
+  const log = getBWLog();
+  const existing = log.findIndex(e => e.date === date);
+  if (existing >= 0) log[existing].weight = val; else log.push({ date, weight: val });
+  log.sort((a,b) => a.date.localeCompare(b.date));
+  saveBWLog(log);
+  if (inp) inp.value = '';
+  renderBWChart();
+}
+
+function renderBWChart() {
+  const log = getBWLog();
+  const emptyEl = document.getElementById('bw-empty');
+  const canvas = document.getElementById('bw-chart');
+  if (!canvas) return;
+  if (log.length === 0) {
+    if (emptyEl) emptyEl.style.display = 'block';
+    canvas.style.display = 'none';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  canvas.style.display = 'block';
+  const labels = log.map(e => e.date.slice(5)); // MM-DD
+  const data = log.map(e => e.weight);
+  if (bwChartInstance) bwChartInstance.destroy();
+  bwChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Body Weight (lbs)',
+        data,
+        borderColor: '#e63022',
+        backgroundColor: 'rgba(230,48,34,0.08)',
+        borderWidth: 2,
+        pointBackgroundColor: '#e63022',
+        pointRadius: 4,
+        tension: 0.3,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' lbs' } } },
+      scales: {
+        x: { ticks: { color: '#888', font: { size: 11 } }, grid: { color: '#222' } },
+        y: { ticks: { color: '#888', font: { size: 11 }, callback: v => v + ' lbs' }, grid: { color: '#222' } }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// PROGRESS TAB — MEASUREMENTS
+// ══════════════════════════════════════════════════════════════
+function getMeasurements() { return JSON.parse(getItem('measurements_log') || '[]'); }
+function saveMeasurements_data(log) { setItem('measurements_log', JSON.stringify(log)); }
+
+function openMeasurementsModal() {
+  const modal = document.getElementById('measurements-modal');
+  if (modal) { modal.style.display = 'flex'; }
+  const dateInp = document.getElementById('mm-date');
+  if (dateInp && !dateInp.value) dateInp.value = new Date().toISOString().slice(0,10);
+}
+function closeMeasurementsModal() {
+  const modal = document.getElementById('measurements-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function saveMeasurements() {
+  const date = document.getElementById('mm-date')?.value || new Date().toISOString().slice(0,10);
+  const entry = {
+    date,
+    chest:  parseFloat(document.getElementById('mm-chest')?.value) || null,
+    waist:  parseFloat(document.getElementById('mm-waist')?.value) || null,
+    hips:   parseFloat(document.getElementById('mm-hips')?.value) || null,
+    arms:   parseFloat(document.getElementById('mm-arms')?.value) || null,
+    thighs: parseFloat(document.getElementById('mm-thighs')?.value) || null,
+  };
+  const log = getMeasurements();
+  const idx = log.findIndex(e => e.date === date);
+  if (idx >= 0) log[idx] = entry; else log.push(entry);
+  log.sort((a,b) => a.date.localeCompare(b.date));
+  saveMeasurements_data(log);
+  closeMeasurementsModal();
+  renderMeasurementsTable();
+}
+
+function renderMeasurementsTable() {
+  const log = getMeasurements();
+  const emptyEl = document.getElementById('measurements-empty');
+  const table = document.getElementById('measurements-table');
+  const tbody = document.getElementById('measurements-tbody');
+  if (!tbody) return;
+  if (log.length === 0) {
+    if (emptyEl) emptyEl.style.display = 'block';
+    if (table) table.style.display = 'none';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (table) table.style.display = 'table';
+  const fmt = v => v != null ? v + '"' : '—';
+  tbody.innerHTML = [...log].reverse().map(e =>
+    '<tr><td>' + e.date + '</td><td>' + fmt(e.chest) + '</td><td>' + fmt(e.waist) + '</td><td>' + fmt(e.hips) + '</td><td>' + fmt(e.arms) + '</td><td>' + fmt(e.thighs) + '</td></tr>'
+  ).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// PROGRESS TAB — STRENGTH CHART
+// ══════════════════════════════════════════════════════════════
+function populateExerciseSelect() {
+  const sel = document.getElementById('exercise-select');
+  if (!sel) return;
+  const exercises = [];
+  document.querySelectorAll('.ex-table').forEach(table => {
+    const dayCard = table.closest('.day-card');
+    if (!dayCard) return;
+    const rows = table.querySelectorAll('tr:not(:first-child)');
+    rows.forEach((row, idx) => {
+      const saveKey = 'ex_' + dayCard.id + '_' + idx;
+      const hist = JSON.parse(getItem(saveKey + '_h') || '[]');
+      if (hist.length === 0) return;
+      const cells = row.querySelectorAll('td');
+      const nameCell = cells[1] || cells[0];
+      const name = nameCell ? nameCell.textContent.trim().slice(0,40) : saveKey;
+      if (!exercises.find(e => e.key === saveKey))
+        exercises.push({ key: saveKey, name });
+    });
+  });
+  sel.innerHTML = '<option value="">— Select Exercise —</option>' +
+    exercises.map(e => '<option value="' + e.key + '">' + e.name + '</option>').join('');
+}
+
+function renderStrengthChart() {
+  const sel = document.getElementById('exercise-select');
+  const key = sel ? sel.value : '';
+  const emptyEl = document.getElementById('strength-empty');
+  const canvas = document.getElementById('strength-chart');
+  if (!canvas) return;
+  if (!key) {
+    if (emptyEl) emptyEl.style.display = 'block';
+    canvas.style.display = 'none';
+    return;
+  }
+  const hist = JSON.parse(getItem(key + '_h') || '[]');
+  if (hist.length === 0) {
+    if (emptyEl) { emptyEl.style.display = 'block'; emptyEl.textContent = 'No data for this exercise yet.'; }
+    canvas.style.display = 'none';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  canvas.style.display = 'block';
+  const labels = hist.map((_, i) => 'Session ' + (i + 1));
+  if (strengthChartInstance) strengthChartInstance.destroy();
+  strengthChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Weight (lbs)',
+        data: hist,
+        borderColor: '#c9a84c',
+        backgroundColor: 'rgba(201,168,76,0.08)',
+        borderWidth: 2,
+        pointBackgroundColor: '#c9a84c',
+        pointRadius: 5,
+        tension: 0.2,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' lbs' } } },
+      scales: {
+        x: { ticks: { color: '#888', font: { size: 11 } }, grid: { color: '#222' } },
+        y: { ticks: { color: '#888', font: { size: 11 }, callback: v => v + ' lbs' }, grid: { color: '#222' } }
+      }
+    }
+  });
+}
+
+function initProgressTab() {
+  renderBWChart();
+  renderMeasurementsTable();
+  populateExerciseSelect();
+  const bwDate = document.getElementById('prog-bw-date');
+  if (bwDate && !bwDate.value) bwDate.value = new Date().toISOString().slice(0,10);
+}
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT CSV
+// ══════════════════════════════════════════════════════════════
+function exportCSV() {
+  const rows = [];
+  // Body weight
+  rows.push(['=== BODY WEIGHT ===']);
+  rows.push(['Date', 'Weight (lbs)']);
+  getBWLog().forEach(e => rows.push([e.date, e.weight]));
+  rows.push([]);
+  // Measurements
+  rows.push(['=== MEASUREMENTS ===']);
+  rows.push(['Date', 'Chest', 'Waist', 'Hips', 'Arms', 'Thighs']);
+  getMeasurements().forEach(e => rows.push([e.date, e.chest||'', e.waist||'', e.hips||'', e.arms||'', e.thighs||'']));
+  rows.push([]);
+  // Exercise weights
+  rows.push(['=== EXERCISE LOGS ===']);
+  rows.push(['Exercise', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 5']);
+  document.querySelectorAll('.ex-table').forEach(table => {
+    const dayCard = table.closest('.day-card');
+    if (!dayCard) return;
+    table.querySelectorAll('tr:not(:first-child)').forEach((row, idx) => {
+      const saveKey = 'ex_' + dayCard.id + '_' + idx;
+      const hist = JSON.parse(getItem(saveKey + '_h') || '[]');
+      if (hist.length === 0) return;
+      const cells = row.querySelectorAll('td');
+      const nameCell = cells[1] || cells[0];
+      const name = nameCell ? nameCell.textContent.trim().slice(0,40) : saveKey;
+      rows.push([name, ...hist]);
+    });
+  });
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '12week-progress-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Expose all new functions
+window.logBodyWeight = logBodyWeight;
+window.openMeasurementsModal = openMeasurementsModal;
+window.closeMeasurementsModal = closeMeasurementsModal;
+window.saveMeasurements = saveMeasurements;
+window.renderStrengthChart = renderStrengthChart;
+window.exportCSV = exportCSV;
+
+// Init dashboard on load
+setTimeout(initDashboard, 300);
 
 getCurrentUser().then(user => updateAuthUI(user));
