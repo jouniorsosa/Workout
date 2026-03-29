@@ -10,7 +10,7 @@ import { supabase, getCurrentUser } from './supabase.js'
 
 async function pushToCloud(key, value) {
   const user = await getCurrentUser()
-  if (!user) return false
+  if (!user) return { ok: false, reason: 'Not logged in' }
   const { error } = await supabase.from('user_data').upsert({
     user_id: user.id,
     key,
@@ -18,10 +18,9 @@ async function pushToCloud(key, value) {
     updated_at: new Date().toISOString()
   }, { onConflict: 'user_id,key' })
   if (error) {
-    console.error('[DB] pushToCloud failed:', key, error.message)
-    return false
+    return { ok: false, reason: error.message || error.code || 'Unknown error' }
   }
-  return true
+  return { ok: true }
 }
 
 async function deleteFromCloud(key) {
@@ -41,7 +40,7 @@ export function setItem(key, value) {
   pushToCloud(key, value) // async, fire-and-forget
 }
 
-/** Like setItem but awaits cloud sync — returns true if cloud push succeeded */
+/** Like setItem but awaits cloud sync — returns { ok, reason } */
 export async function setItemSync(key, value) {
   localStorage.setItem(key, value)
   return pushToCloud(key, value)
