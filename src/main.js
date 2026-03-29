@@ -695,13 +695,115 @@ function showPhase(id) {
     'general':    { label:'General Fit', calAdj:-150, protMult:0.9, carbMult:1.0, fatMult:0.9,  statLabel:'Get Fit'    },
   };
 
+  // ── Program customization by fitness level / profile ──────────────────────
+
+  const EXERCISE_CAT = {
+    'barbell bench press':'cup','incline dumbbell press':'cup','dumbbell bench press':'cup',
+    'overhead dumbbell press':'cup','barbell overhead press':'cup','dumbbell shoulder press':'cup',
+    'barbell bent-over row':'cupl','cable seated row':'cupl','dumbbell single-arm row':'cupl',
+    'lat pulldown':'cupl','cable row':'cupl','t-bar row':'cupl',
+    'barbell squat':'clo','back squat':'clo','front squat':'clo','deadlift':'clo',
+    'romanian deadlift':'clo','sumo deadlift':'clo','barbell hip thrust':'clo',
+    'bulgarian split squat':'clo','goblet squat':'clo',
+    'leg press':'mlo','hack squat':'mlo','smith machine squat':'mlo',
+    'pull-ups / assisted pull-ups':'bw','pull-ups':'bw','chin-ups':'bw',
+    'push-ups':'bw','dips':'bw','walking lunges':'bw','lunges':'bw',
+    'dumbbell lateral raise':'iso','cable tricep pushdown':'iso','overhead tricep extension':'iso',
+    'barbell curl':'iso','hammer curl':'iso','preacher curl':'iso','incline curl':'iso',
+    'leg curl':'iso','leg extension':'iso','calf raises':'iso','seated calf raise':'iso',
+    'cable fly':'iso','pec deck':'iso','rear delt fly':'iso','face pulls':'iso',
+  };
+
+  // [beginner, intermediate, advanced] weight ranges as fraction of bodyweight
+  const W_PCTS = {
+    cup:  { male:[[0.30,0.45],[0.60,0.80],[0.90,1.15]], female:[[0.18,0.28],[0.35,0.50],[0.60,0.80]] },
+    cupl: { male:[[0.28,0.42],[0.55,0.75],[0.85,1.10]], female:[[0.16,0.26],[0.30,0.48],[0.55,0.75]] },
+    clo:  { male:[[0.45,0.65],[0.85,1.15],[1.25,1.65]], female:[[0.28,0.45],[0.55,0.85],[0.95,1.25]] },
+    mlo:  { male:[[0.80,1.20],[1.40,1.90],[2.20,3.00]], female:[[0.60,0.90],[1.00,1.50],[1.80,2.50]] },
+    iso:  { male:[[0.05,0.09],[0.10,0.17],[0.17,0.26]], female:[[0.03,0.06],[0.07,0.12],[0.11,0.18]] },
+  };
+
+  function getWeightSuggestion(exerciseName, p) {
+    const cat = EXERCISE_CAT[exerciseName.toLowerCase().trim()];
+    if (!cat || cat === 'bw') return null;
+    const lvlIdx = { beginner:0, intermediate:1, advanced:2 }[p.fitnessLevel || 'intermediate'] ?? 1;
+    const range = W_PCTS[cat]?.[p.sex === 'female' ? 'female' : 'male']?.[lvlIdx];
+    if (!range) return null;
+    const lo = Math.max(5, Math.round(p.weight * range[0] / 5) * 5);
+    const hi = Math.round(p.weight * range[1] / 5) * 5;
+    return [lo, hi];
+  }
+
+  function applyProgramCustomization(p) {
+    if (!p) return;
+    const level = p.fitnessLevel || 'intermediate';
+    const isOlderAdult = (p.age || 30) >= 50;
+
+    document.querySelectorAll('.ex-table tr:not(:first-child)').forEach(row => {
+      const setsEl = row.querySelector('.sets-badge');
+      const restEl = row.querySelector('.rest-badge');
+
+      if (setsEl) {
+        if (!setsEl.dataset.orig) setsEl.dataset.orig = setsEl.textContent;
+        const origSets = parseInt(setsEl.dataset.orig) || 3;
+        if (level === 'beginner')  setsEl.textContent = Math.max(2, origSets - 1);
+        else if (level === 'advanced') setsEl.textContent = origSets + 1;
+        else setsEl.textContent = setsEl.dataset.orig;
+      }
+
+      if (restEl) {
+        if (!restEl.dataset.orig) restEl.dataset.orig = restEl.textContent;
+        const origSec = parseInt(restEl.dataset.orig) || 90;
+        let adjSec = origSec;
+        if (level === 'beginner') adjSec = Math.min(origSec + 30, 150);
+        else if (level === 'advanced') adjSec = Math.max(origSec - 15, 45);
+        if (isOlderAdult) adjSec = Math.min(adjSec + 15, 180);
+        restEl.textContent = restEl.dataset.orig === restEl.textContent
+          ? adjSec + 's'
+          : adjSec + 's';
+        restEl.textContent = adjSec + 's';
+      }
+
+      // Weight suggestion: update input placeholder + add hint below
+      const nameCell = row.querySelector('td:nth-child(2)');
+      const weightInp = row.querySelector('.weight-input');
+      if (nameCell && weightInp) {
+        const suggestion = getWeightSuggestion(nameCell.textContent, p);
+        if (suggestion) {
+          const [lo, hi] = suggestion;
+          weightInp.placeholder = lo + '-' + hi;
+          const wrap = weightInp.closest('.weight-input-wrap');
+          if (wrap) {
+            // Restructure wrap to have an inner row for input+unit if not done yet
+            if (!wrap.querySelector('.weight-input-row')) {
+              const unit = wrap.querySelector('.weight-unit');
+              const row2 = document.createElement('div');
+              row2.className = 'weight-input-row';
+              wrap.insertBefore(row2, weightInp);
+              row2.appendChild(weightInp);
+              if (unit) row2.appendChild(unit);
+            }
+            // Add or update hint
+            let hint = wrap.querySelector('.weight-hint');
+            if (!hint) {
+              hint = document.createElement('div');
+              hint.className = 'weight-hint';
+              wrap.appendChild(hint);
+            }
+            hint.textContent = lo + '–' + hi + ' lbs';
+          }
+        }
+      }
+    });
+  }
+
   function loadProfile() {
     try { return JSON.parse(getItem('userProfile') || 'null'); }
     catch(e) { return null; }
   }
 
   function getProfile() {
-    return loadProfile() || { age:45, weight:200, sex:'male', heightFt:5, heightIn:10, activity:1.55, goal:'fat-loss' };
+    return loadProfile() || { age:45, weight:200, sex:'male', heightFt:5, heightIn:10, activity:1.55, goal:'fat-loss', fitnessLevel:'intermediate' };
   }
 
   function calcMacros(p) {
@@ -749,13 +851,14 @@ function showPhase(id) {
   function readFormValues() {
     const sel = document.querySelector('.pm-goal-tile.selected');
     return {
-      age:       parseInt(document.getElementById('pm-age')?.value)       || 45,
-      weight:    parseInt(document.getElementById('pm-weight')?.value)    || 200,
-      sex:       document.getElementById('pm-sex')?.value                 || 'male',
-      heightFt:  parseInt(document.getElementById('pm-height-ft')?.value) || 5,
-      heightIn:  parseInt(document.getElementById('pm-height-in')?.value) || 10,
-      activity:  parseFloat(document.getElementById('pm-activity')?.value)|| 1.55,
-      goal:      sel ? sel.dataset.goal : 'fat-loss',
+      age:          parseInt(document.getElementById('pm-age')?.value)          || 45,
+      weight:       parseInt(document.getElementById('pm-weight')?.value)       || 200,
+      sex:          document.getElementById('pm-sex')?.value                    || 'male',
+      heightFt:     parseInt(document.getElementById('pm-height-ft')?.value)    || 5,
+      heightIn:     parseInt(document.getElementById('pm-height-in')?.value)    || 10,
+      activity:     parseFloat(document.getElementById('pm-activity')?.value)   || 1.55,
+      fitnessLevel: document.getElementById('pm-fitness-level')?.value          || 'intermediate',
+      goal:         sel ? sel.dataset.goal : 'fat-loss',
     };
   }
 
@@ -767,6 +870,7 @@ function showPhase(id) {
     set('pm-height-ft', p.heightFt);
     set('pm-height-in', p.heightIn);
     set('pm-activity', p.activity);
+    set('pm-fitness-level', p.fitnessLevel || 'intermediate');
     // Goal tiles
     document.querySelectorAll('.pm-goal-tile').forEach(t => {
       t.classList.toggle('selected', t.dataset.goal === p.goal);
@@ -774,9 +878,15 @@ function showPhase(id) {
     updateMacroPreview();
   }
 
-  function openProfileModal() {
+  function openProfileModal(isFirstTime) {
     const p = getProfile();
     populateForm(p);
+    const desc = document.getElementById('pm-header-desc');
+    if (desc) {
+      desc.textContent = isFirstTime
+        ? 'Welcome! Fill out your profile to get a personalized workout program tailored to your age, fitness level, and goal.'
+        : 'Update your stats and goal. Macros, calorie targets, heart rate zones, and tips will recalculate instantly.';
+    }
     document.getElementById('profile-modal').classList.add('open');
   }
 
@@ -811,8 +921,9 @@ function showPhase(id) {
 
     // Hero subtitle
     const goalVerb = { 'fat-loss':'lose fat & build muscle', 'muscle':'build muscle & strength', 'recomp':'recomp body composition', 'endurance':'build endurance & stamina', 'strength':'maximize raw strength', 'general':'improve overall fitness' };
+    const levelLabel = { beginner:'Beginner', intermediate:'Intermediate', advanced:'Advanced' }[p.fitnessLevel || 'intermediate'];
     if(el('hero-sub-text')) el('hero-sub-text').textContent =
-      'A complete 12-week program designed for a ' + p.age + '-year-old ' + sexLabel.toLowerCase() + ' at ' + p.weight + ' lbs (' + heightStr + ') to ' + (goalVerb[p.goal] || 'reach your goal') + '. Three progressive phases. Every session mapped. No guesswork.';
+      'A complete 12-week ' + levelLabel + ' program designed for a ' + p.age + '-year-old ' + sexLabel.toLowerCase() + ' at ' + p.weight + ' lbs (' + heightStr + ') to ' + (goalVerb[p.goal] || 'reach your goal') + '. Three progressive phases. Every session mapped. No guesswork.';
 
     // Stats bar
     if(el('stat-goal'))    el('stat-goal').textContent    = cfg.statLabel;
@@ -855,6 +966,9 @@ function showPhase(id) {
     if(mpCalEl) mpCalEl.textContent = (m.targetCal - 100).toLocaleString() + '-' + (m.targetCal + 100).toLocaleString() + ' cal';
     const mpProtEl = document.querySelectorAll('#meals .phase-badge .badge-val')[1];
     if(mpProtEl) mpProtEl.textContent = (m.protG - 10) + '-' + (m.protG + 10) + 'g / day';
+
+    // Apply workout customization (delay to ensure exercise tables are initialized)
+    setTimeout(() => applyProgramCustomization(p), 500);
   }
 
   // Apply saved profile on load
@@ -883,6 +997,7 @@ window.closeProfileModal = closeProfileModal;
 window.saveProfile = saveProfile;
 window.selectGoal = selectGoal;
 window.updateMacroPreview = updateMacroPreview;
+window.applyProgramCustomization = applyProgramCustomization;
 window.dismissTimer = dismissTimer;
 
 // ── Auth UI + Cloud Sync ──────────────────────────────────────────────────────
@@ -894,6 +1009,7 @@ function refreshAllUI() {
   if (p) applyProfileToUI(p); else applyProfileToUI(getProfile());
   initWeekRings();
   setTimeout(initExerciseTables, 200);
+  setTimeout(() => applyProgramCustomization(loadProfile() || getProfile()), 600);
 }
 
 function updateAuthUI(user) {
@@ -966,8 +1082,13 @@ window.dismissAuthModal  = dismissAuthModal;
 onAuthChange(async (event, user) => {
   updateAuthUI(user);
   if (user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+    const isFirstTime = !loadProfile();
     const loaded = await loadFromCloud(refreshAllUI);
     if (!loaded) refreshAllUI();
+    // Open profile modal for first-time users after UI is ready
+    if (isFirstTime && !loadProfile()) {
+      setTimeout(() => openProfileModal(true), 800);
+    }
   }
 });
 
