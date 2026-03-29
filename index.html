@@ -164,19 +164,45 @@
   <button id="rt-dismiss" onclick="dismissTimer()">×</button>
 </div>
 
-<!-- AUTH BAR -->
-<div id="auth-bar">
-  <div id="auth-bar-left">
-    <span id="auth-sync-badge" style="display:none">☁ Synced</span>
-    <span id="auth-status">Checking…</span>
-  </div>
-  <div id="auth-bar-right">
-    <div id="auth-email-wrap" style="display:none">
-      <input id="auth-email-input" type="email" placeholder="your@email.com" />
-      <button id="auth-btn" onclick="handleSignIn()">Send Magic Link</button>
+<!-- AUTH LOGIN MODAL -->
+<div id="auth-modal">
+  <div id="auth-modal-inner">
+    <div id="auth-modal-brand">
+      <div class="auth-brand-tag">Personal Training Program</div>
+      <h1 class="auth-brand-title">12-WEEK<br><span>TRANSFORMATION</span></h1>
+      <ul class="auth-feature-list">
+        <li><span class="auth-feat-icon">☁</span> Sync progress across all devices</li>
+        <li><span class="auth-feat-icon">⚡</span> Weight logs & PRs saved forever</li>
+        <li><span class="auth-feat-icon">🔒</span> Your data, private and secure</li>
+      </ul>
     </div>
-    <button id="auth-signout" style="display:none" onclick="handleSignOut()">Sign Out</button>
+    <div id="auth-modal-form">
+      <div id="auth-form-default">
+        <div class="auth-form-label">Sign in to your account</div>
+        <input type="email" id="auth-modal-email" placeholder="your@email.com"
+          onkeydown="if(event.key==='Enter')handleModalSignIn()" />
+        <button id="auth-modal-btn" onclick="handleModalSignIn()">
+          Send Magic Link <span class="auth-arrow">→</span>
+        </button>
+        <p class="auth-note">No password needed — we'll email you a one-click sign-in link.</p>
+      </div>
+      <div id="auth-form-sent" style="display:none">
+        <div class="auth-sent-icon">✓</div>
+        <div class="auth-sent-title">Check your inbox</div>
+        <p class="auth-sent-text">Magic link sent to <strong id="auth-sent-email"></strong>.<br>Click it to sign in instantly.</p>
+      </div>
+      <button id="auth-modal-skip" onclick="dismissAuthModal()">Continue without signing in</button>
+    </div>
   </div>
+</div>
+
+<!-- TOP AUTH BAR (shown when signed in) -->
+<div id="auth-bar" style="display:none">
+  <div id="auth-bar-left">
+    <span id="auth-sync-badge">☁ Synced</span>
+    <span id="auth-status"></span>
+  </div>
+  <button id="auth-signout" onclick="handleSignOut()">Sign Out</button>
 </div>
 
 <!-- HERO -->

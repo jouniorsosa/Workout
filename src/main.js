@@ -893,42 +893,51 @@ function refreshAllUI() {
 }
 
 function updateAuthUI(user) {
+  const authModal  = document.getElementById('auth-modal');
+  const authBar    = document.getElementById('auth-bar');
   const authStatus = document.getElementById('auth-status');
-  const authEmail  = document.getElementById('auth-email-wrap');
-  const authBtn    = document.getElementById('auth-btn');
-  const authOut    = document.getElementById('auth-signout');
-  const syncBadge  = document.getElementById('auth-sync-badge');
-  if (!authStatus) return;
 
   if (user) {
-    authStatus.textContent = user.email;
-    if (authEmail)  authEmail.style.display  = 'none';
-    if (authBtn)    authBtn.style.display     = 'none';
-    if (authOut)    authOut.style.display     = 'inline-flex';
-    if (syncBadge)  syncBadge.style.display   = 'inline-flex';
+    // Hide login modal, show top bar
+    if (authModal) authModal.classList.add('hidden');
+    if (authBar)   authBar.style.display = 'flex';
+    if (authStatus) authStatus.textContent = user.email;
   } else {
-    authStatus.textContent = 'Not signed in';
-    if (authEmail)  authEmail.style.display  = 'flex';
-    if (authBtn)    authBtn.style.display     = 'inline-flex';
-    if (authOut)    authOut.style.display     = 'none';
-    if (syncBadge)  syncBadge.style.display   = 'none';
+    // Show login modal, hide top bar
+    if (authModal) authModal.classList.remove('hidden');
+    if (authBar)   authBar.style.display = 'none';
+    // Reset form state
+    const formDefault = document.getElementById('auth-form-default');
+    const formSent    = document.getElementById('auth-form-sent');
+    const btn         = document.getElementById('auth-modal-btn');
+    if (formDefault) formDefault.style.display = 'block';
+    if (formSent)    formSent.style.display    = 'none';
+    if (btn)         { btn.textContent = 'Send Magic Link →'; btn.disabled = false; }
   }
 }
 
-async function handleSignIn() {
-  const input = document.getElementById('auth-email-input');
+function dismissAuthModal() {
+  const authModal = document.getElementById('auth-modal');
+  if (authModal) authModal.classList.add('hidden');
+}
+
+async function handleModalSignIn() {
+  const input = document.getElementById('auth-modal-email');
   const email = input ? input.value.trim() : '';
-  if (!email) { alert('Enter your email address.'); return; }
-  const authBtn = document.getElementById('auth-btn');
-  if (authBtn) { authBtn.textContent = 'Sending…'; authBtn.disabled = true; }
+  if (!email) { input && input.focus(); return; }
+  const btn = document.getElementById('auth-modal-btn');
+  if (btn) { btn.innerHTML = 'Sending…'; btn.disabled = true; }
   const { error } = await signInWithEmail(email);
   if (error) {
     alert('Error: ' + error.message);
-    if (authBtn) { authBtn.textContent = 'Send Magic Link'; authBtn.disabled = false; }
+    if (btn) { btn.innerHTML = 'Send Magic Link <span class="auth-arrow">→</span>'; btn.disabled = false; }
   } else {
-    if (authBtn) { authBtn.textContent = '✓ Check your email!'; }
-    const wrap = document.getElementById('auth-email-wrap');
-    if (wrap) wrap.innerHTML = '<span style="color:var(--green);font-size:12px">Magic link sent — check your inbox and click the link to sign in.</span>';
+    const formDefault = document.getElementById('auth-form-default');
+    const formSent    = document.getElementById('auth-form-sent');
+    const sentEmail   = document.getElementById('auth-sent-email');
+    if (formDefault) formDefault.style.display = 'none';
+    if (formSent)    formSent.style.display    = 'block';
+    if (sentEmail)   sentEmail.textContent     = email;
   }
 }
 
@@ -937,8 +946,9 @@ async function handleSignOut() {
   updateAuthUI(null);
 }
 
-window.handleSignIn  = handleSignIn;
-window.handleSignOut = handleSignOut;
+window.handleModalSignIn = handleModalSignIn;
+window.handleSignOut     = handleSignOut;
+window.dismissAuthModal  = dismissAuthModal;
 
 // On load: check auth state, pull cloud data if logged in
 onAuthChange(async (event, user) => {

@@ -1,18 +1,214 @@
-/* AUTH BAR */
+/* ── AUTH LOGIN MODAL ───────────────────────────────────────────────────── */
+#auth-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0a;
+  overflow-y: auto;
+}
+#auth-modal.hidden { display: none; }
+
+#auth-modal-inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 1100px;
+  margin: auto;
+}
+
+/* LEFT — branding */
+#auth-modal-brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 60px 56px;
+  border-right: 1px solid #1e1e1e;
+  position: relative;
+  overflow: hidden;
+}
+#auth-modal-brand::before {
+  content: "12";
+  position: absolute;
+  right: -40px;
+  bottom: -60px;
+  font-family: 'Bebas Neue', cursive;
+  font-size: 320px;
+  color: rgba(230,48,34,0.05);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+.auth-brand-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: #e63022;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.auth-brand-title {
+  font-family: 'Bebas Neue', cursive;
+  font-size: clamp(52px, 7vw, 88px);
+  line-height: 0.9;
+  color: #f5f0e8;
+  letter-spacing: 2px;
+  margin-bottom: 36px;
+}
+.auth-brand-title span { color: #e63022; }
+.auth-feature-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.auth-feature-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: #888;
+  font-weight: 400;
+}
+.auth-feat-icon {
+  width: 32px;
+  height: 32px;
+  background: #1e1e1e;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* RIGHT — form */
+#auth-modal-form {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 60px 56px;
+  gap: 0;
+}
+.auth-form-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #555;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+#auth-modal-email {
+  width: 100%;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: #f5f0e8;
+  padding: 14px 16px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+#auth-modal-email:focus {
+  outline: none;
+  border-color: #e63022;
+}
+#auth-modal-email::placeholder { color: #333; }
+
+#auth-modal-btn {
+  width: 100%;
+  background: #e63022;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 14px 20px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.2s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+#auth-modal-btn:hover { background: #b01f14; }
+#auth-modal-btn:active { transform: scale(0.98); }
+#auth-modal-btn:disabled { background: #444; cursor: default; }
+.auth-arrow { font-size: 18px; transition: transform 0.2s; }
+#auth-modal-btn:hover .auth-arrow { transform: translateX(4px); }
+
+.auth-note {
+  font-size: 12px;
+  color: #444;
+  text-align: center;
+  line-height: 1.5;
+  margin-bottom: 36px;
+}
+
+/* Sent state */
+#auth-form-sent { text-align: center; padding: 20px 0 36px; }
+.auth-sent-icon {
+  width: 56px; height: 56px;
+  background: #1a3a2a;
+  border: 2px solid #3dba74;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: #3dba74;
+  margin: 0 auto 20px;
+}
+.auth-sent-title {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 28px;
+  color: #f5f0e8;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+.auth-sent-text { font-size: 14px; color: #666; line-height: 1.6; }
+.auth-sent-text strong { color: #f5f0e8; }
+
+#auth-modal-skip {
+  background: none;
+  border: 1px solid #222;
+  border-radius: 8px;
+  color: #444;
+  padding: 12px 20px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  width: 100%;
+  transition: color 0.2s, border-color 0.2s;
+}
+#auth-modal-skip:hover { color: #888; border-color: #333; }
+
+/* Responsive */
+@media (max-width: 700px) {
+  #auth-modal-inner { grid-template-columns: 1fr; }
+  #auth-modal-brand { display: none; }
+  #auth-modal-form { padding: 48px 28px; justify-content: flex-start; padding-top: 80px; }
+}
+
+/* ── TOP AUTH BAR (signed-in state) ──────────────────────────────────────── */
 #auth-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: #111;
-  border-bottom: 1px solid #222;
-  padding: 8px 20px;
+  background: #0d0d0d;
+  border-bottom: 1px solid #1a1a1a;
+  padding: 7px 20px;
   font-family: 'DM Mono', monospace;
   font-size: 11px;
-  flex-wrap: wrap;
 }
-#auth-bar-left { display: flex; align-items: center; gap: 10px; color: #555; }
-#auth-bar-right { display: flex; align-items: center; gap: 8px; }
+#auth-bar-left { display: flex; align-items: center; gap: 10px; color: #444; }
 #auth-sync-badge {
   background: #1a3a2a;
   color: #3dba74;
@@ -21,30 +217,17 @@
   font-size: 10px;
   letter-spacing: 1px;
 }
-#auth-email-wrap { display: flex; align-items: center; gap: 6px; }
-#auth-email-input {
-  background: #1e1e1e;
-  border: 1px solid #333;
-  color: #f5f0e8;
-  padding: 5px 10px;
+#auth-signout {
+  background: none;
+  border: 1px solid #222;
+  color: #555;
+  padding: 4px 10px;
   border-radius: 4px;
   font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  width: 180px;
-}
-#auth-btn, #auth-signout {
-  background: #e63022;
-  color: white;
-  border: none;
-  padding: 5px 12px;
-  border-radius: 4px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
   cursor: pointer;
-  white-space: nowrap;
+  transition: color 0.2s;
 }
-#auth-signout { background: #2a2a2a; color: #888; }
 #auth-signout:hover { color: #f5f0e8; }
 
 :root {
