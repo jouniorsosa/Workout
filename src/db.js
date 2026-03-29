@@ -10,22 +10,28 @@ import { supabase, getCurrentUser } from './supabase.js'
 
 async function pushToCloud(key, value) {
   const user = await getCurrentUser()
-  if (!user) return
-  await supabase.from('user_data').upsert({
+  if (!user) return false
+  const { error } = await supabase.from('user_data').upsert({
     user_id: user.id,
     key,
     value: String(value),
     updated_at: new Date().toISOString()
   }, { onConflict: 'user_id,key' })
+  if (error) {
+    console.error('[DB] pushToCloud failed:', key, error.message)
+    return false
+  }
+  return true
 }
 
 async function deleteFromCloud(key) {
   const user = await getCurrentUser()
   if (!user) return
-  await supabase.from('user_data')
+  const { error } = await supabase.from('user_data')
     .delete()
     .eq('user_id', user.id)
     .eq('key', key)
+  if (error) console.error('[DB] deleteFromCloud failed:', key, error.message)
 }
 
 // ── Public API (drop-in localStorage replacement) ─────────────────────────────
@@ -38,13 +44,7 @@ export function setItem(key, value) {
 /** Like setItem but awaits cloud sync — returns true if cloud push succeeded */
 export async function setItemSync(key, value) {
   localStorage.setItem(key, value)
-  try {
-    await pushToCloud(key, value)
-    return true
-  } catch (e) {
-    console.error('Cloud sync failed for', key, e)
-    return false
-  }
+  return pushToCloud(key, value)
 }
 
 export function getItem(key) {
@@ -67,8 +67,16 @@ export async function loadFromCloud(onLoaded) {
     .select('key, value')
     .eq('user_id', user.id)
 
-  if (error || !data) return false
+  if (error) {
+    console.error('[DB] loadFromCloud failed:', error.message)
+    return false
+  }
+  if (!data || data.length === 0) {
+    console.log('[DB] loadFromCloud: no data in cloud for this user')
+    return false
+  }
 
+  console.log('[DB] loadFromCloud: loaded', data.length, 'keys from cloud')
   data.forEach(({ key, value }) => localStorage.setItem(key, value))
 
   if (onLoaded) onLoaded()
