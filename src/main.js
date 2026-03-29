@@ -857,3 +857,20 @@ function showPhase(id) {
       applyProfileToUI(getProfile());
     }
   })();
+
+// Expose functions to global scope for inline onclick handlers
+window.showPhase = showPhase;
+window.showMealsPhase = showMealsPhase;
+window.showMealWeek = showMealWeek;
+window.toggleCheck = toggleCheck;
+window.resetGroceryList = resetGroceryList;
+window.toggleWeek = toggleWeek;
+window.toggleDay = toggleDay;
+window.openTodayModal = openTodayModal;
+window.confirmStartDate = confirmStartDate;
+window.openProfileModal = openProfileModal;
+window.closeProfileModal = closeProfileModal;
+window.saveProfile = saveProfile;
+window.selectGoal = selectGoal;
+window.updateMacroPreview = updateMacroPreview;
+window.dismissTimer = dismissTimer;
