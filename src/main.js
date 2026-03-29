@@ -926,10 +926,18 @@ async function handleModalSignIn() {
   const email = input ? input.value.trim() : '';
   if (!email) { input && input.focus(); return; }
   const btn = document.getElementById('auth-modal-btn');
+  let errEl = document.getElementById('auth-error-msg');
+  if (!errEl) {
+    errEl = document.createElement('p');
+    errEl.id = 'auth-error-msg';
+    errEl.style.cssText = 'color:#e63022;font-size:13px;margin-top:10px;text-align:center;';
+    btn && btn.insertAdjacentElement('afterend', errEl);
+  }
+  errEl.textContent = '';
   if (btn) { btn.innerHTML = 'Sending…'; btn.disabled = true; }
   const { error } = await signInWithEmail(email);
   if (error) {
-    alert('Error: ' + error.message);
+    errEl.textContent = error.message;
     if (btn) { btn.innerHTML = 'Send Magic Link <span class="auth-arrow">→</span>'; btn.disabled = false; }
   } else {
     const formDefault = document.getElementById('auth-form-default');
