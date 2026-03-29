@@ -35,6 +35,18 @@ export function setItem(key, value) {
   pushToCloud(key, value) // async, fire-and-forget
 }
 
+/** Like setItem but awaits cloud sync — returns true if cloud push succeeded */
+export async function setItemSync(key, value) {
+  localStorage.setItem(key, value)
+  try {
+    await pushToCloud(key, value)
+    return true
+  } catch (e) {
+    console.error('Cloud sync failed for', key, e)
+    return false
+  }
+}
+
 export function getItem(key) {
   return localStorage.getItem(key)
 }

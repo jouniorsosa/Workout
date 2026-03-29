@@ -1,5 +1,5 @@
 import './style.css';
-import { setItem, getItem, removeItem, loadFromCloud, onAuthChange } from './db.js';
+import { setItem, setItemSync, getItem, removeItem, loadFromCloud, onAuthChange } from './db.js';
 import { signInWithEmail, signOut, getCurrentUser, signInWithGoogle } from './supabase.js';
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler } from 'chart.js';
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler);
@@ -898,16 +898,20 @@ function showPhase(id) {
     if(e.target === this) closeProfileModal();
   });
 
-  function saveProfile() {
+  async function saveProfile() {
     const p = readFormValues();
-    setItem('userProfile', JSON.stringify(p));
     applyProfileToUI(p);
     closeProfileModal();
 
-    // Toast
+    // Save locally + sync to cloud (awaited)
+    const synced = await setItemSync('userProfile', JSON.stringify(p));
+
+    // Toast with sync status
     const toast = document.createElement('div');
-    toast.textContent = '✓ Profile saved — targets updated';
-    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#3dba74;color:#000;padding:11px 22px;border-radius:8px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;z-index:99999;white-space:nowrap;';
+    toast.textContent = synced
+      ? '✓ Profile saved & synced to cloud'
+      : '✓ Profile saved locally (cloud sync pending)';
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:' + (synced ? '#3dba74' : '#c9a84c') + ';color:#000;padding:11px 22px;border-radius:8px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;z-index:99999;white-space:nowrap;';
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3500);
   }
