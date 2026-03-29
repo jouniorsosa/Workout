@@ -1,4 +1,10 @@
 import './style.css';
+import { setItem, getItem, removeItem, loadFromCloud, onAuthChange } from './db.js';
+import { signInWithEmail, signOut, getCurrentUser } from './supabase.js';
+
+// Make auth functions available to inline handlers
+window.signInWithEmail = signInWithEmail;
+window.signOut = signOut;
 
 function showPhase(id) {
     document.querySelectorAll('.phase-section').forEach(s => s.classList.remove('active'));
@@ -97,10 +103,10 @@ function showPhase(id) {
         // Load saved value
         const saveKey = 'ex_' + (table.closest('[id]') ? table.closest('[id]').id : 'x') + '_' + idx;
         inp.dataset.saveKey = saveKey;
-        const saved = localStorage.getItem(saveKey);
+        const saved = getItem(saveKey);
         if (saved) inp.value = saved;
         inp.addEventListener('input', () => {
-          localStorage.setItem(saveKey, inp.value);
+          setItem(saveKey, inp.value);
         });
         const unit = document.createElement('span');
         unit.className = 'weight-unit';
@@ -445,7 +451,7 @@ function showPhase(id) {
     {phase:'p3',week:'w12',card:'w12-sun',label:'Program Complete'},
   ];
 
-  function getStartDate(){const s=localStorage.getItem('programStartDate');return s?new Date(s+'T00:00:00'):null;}
+  function getStartDate(){const s=getItem('programStartDate');return s?new Date(s+'T00:00:00'):null;}
   function calcTodayInfo(){
     const start=getStartDate();if(!start)return null;
     const now=new Date();now.setHours(0,0,0,0);
@@ -473,14 +479,14 @@ function showPhase(id) {
   function openTodayModal(){
     const modal=document.getElementById('start-modal');
     const inp=document.getElementById('start-date-input');
-    const saved=localStorage.getItem('programStartDate');
+    const saved=getItem('programStartDate');
     if(saved&&inp)inp.value=saved;
     if(modal)modal.classList.add('open');
   }
   function confirmStartDate(){
     const inp=document.getElementById('start-date-input');
     if(!inp||!inp.value)return;
-    localStorage.setItem('programStartDate',inp.value);
+    setItem('programStartDate',inp.value);
     const modal=document.getElementById('start-modal');
     if(modal)modal.classList.remove('open');
     updateTodayStrip();
@@ -506,7 +512,7 @@ function showPhase(id) {
     }
   }
   updateTodayStrip();
-  if(localStorage.getItem('programStartDate'))setTimeout(navigateToToday,400);
+  if(getItem('programStartDate'))setTimeout(navigateToToday,400);
 
   /* WEEK RINGS */
   const WEEK_DAYS_MAP={
@@ -526,7 +532,7 @@ function showPhase(id) {
   function getWeekCompletion(weekId){
     const days=WEEK_DAYS_MAP[weekId]||[];
     if(!days.length)return{done:0,total:6};
-    let done=0;days.forEach(id=>{if(localStorage.getItem('wday_'+id)==='1')done++;});
+    let done=0;days.forEach(id=>{if(getItem('wday_'+id)==='1')done++;});
     return{done,total:days.length};
   }
   function buildWeekRing(weekId){
@@ -553,20 +559,20 @@ function showPhase(id) {
     if(isComplete){const h=document.querySelector('#'+weekId+' > .week-header');if(h){h.classList.add('just-completed');setTimeout(()=>h.classList.remove('just-completed'),1400);}}
   }
   function markDayDone(cardId,complete){
-    if(complete)localStorage.setItem('wday_'+cardId,'1');else localStorage.removeItem('wday_'+cardId);
+    if(complete)setItem('wday_'+cardId,'1');else removeItem('wday_'+cardId);
     for(const[wId,days]of Object.entries(WEEK_DAYS_MAP)){if(days.includes(cardId)){updateWeekRing(wId);break;}}
   }
   function initWeekRings(){Object.keys(WEEK_DAYS_MAP).forEach(id=>{if(document.getElementById(id))buildWeekRing(id);});}
   setTimeout(initWeekRings,150);
 
   /* WEIGHT HISTORY */
-  function getWHist(key){try{return JSON.parse(localStorage.getItem(key+'_h')||'[]');}catch(e){return[];}}
+  function getWHist(key){try{return JSON.parse(getItem(key+'_h')||'[]');}catch(e){return[];}}
   function pushWHist(key,val){
     if(!val||isNaN(parseFloat(val)))return;
     const h=getWHist(key);const n=parseFloat(val);
     if(h.length&&h[h.length-1]===n)return;
     h.push(n);if(h.length>5)h.shift();
-    localStorage.setItem(key+'_h',JSON.stringify(h));
+    setItem(key+'_h',JSON.stringify(h));
   }
   function renderWHist(key,container){
     let old=container.querySelector('.weight-history');if(old)old.remove();
@@ -686,7 +692,7 @@ function showPhase(id) {
   };
 
   function loadProfile() {
-    try { return JSON.parse(localStorage.getItem('userProfile') || 'null'); }
+    try { return JSON.parse(getItem('userProfile') || 'null'); }
     catch(e) { return null; }
   }
 
@@ -780,7 +786,7 @@ function showPhase(id) {
 
   function saveProfile() {
     const p = readFormValues();
-    localStorage.setItem('userProfile', JSON.stringify(p));
+    setItem('userProfile', JSON.stringify(p));
     applyProfileToUI(p);
     closeProfileModal();
 
@@ -874,3 +880,73 @@ window.saveProfile = saveProfile;
 window.selectGoal = selectGoal;
 window.updateMacroPreview = updateMacroPreview;
 window.dismissTimer = dismissTimer;
+
+// ── Auth UI + Cloud Sync ──────────────────────────────────────────────────────
+
+function refreshAllUI() {
+  updateTodayStrip();
+  if (getItem('programStartDate')) navigateToToday();
+  const p = loadProfile();
+  if (p) applyProfileToUI(p); else applyProfileToUI(getProfile());
+  initWeekRings();
+  setTimeout(initExerciseTables, 200);
+}
+
+function updateAuthUI(user) {
+  const authStatus = document.getElementById('auth-status');
+  const authEmail  = document.getElementById('auth-email-wrap');
+  const authBtn    = document.getElementById('auth-btn');
+  const authOut    = document.getElementById('auth-signout');
+  const syncBadge  = document.getElementById('auth-sync-badge');
+  if (!authStatus) return;
+
+  if (user) {
+    authStatus.textContent = user.email;
+    if (authEmail)  authEmail.style.display  = 'none';
+    if (authBtn)    authBtn.style.display     = 'none';
+    if (authOut)    authOut.style.display     = 'inline-flex';
+    if (syncBadge)  syncBadge.style.display   = 'inline-flex';
+  } else {
+    authStatus.textContent = 'Not signed in';
+    if (authEmail)  authEmail.style.display  = 'flex';
+    if (authBtn)    authBtn.style.display     = 'inline-flex';
+    if (authOut)    authOut.style.display     = 'none';
+    if (syncBadge)  syncBadge.style.display   = 'none';
+  }
+}
+
+async function handleSignIn() {
+  const input = document.getElementById('auth-email-input');
+  const email = input ? input.value.trim() : '';
+  if (!email) { alert('Enter your email address.'); return; }
+  const authBtn = document.getElementById('auth-btn');
+  if (authBtn) { authBtn.textContent = 'Sending…'; authBtn.disabled = true; }
+  const { error } = await signInWithEmail(email);
+  if (error) {
+    alert('Error: ' + error.message);
+    if (authBtn) { authBtn.textContent = 'Send Magic Link'; authBtn.disabled = false; }
+  } else {
+    if (authBtn) { authBtn.textContent = '✓ Check your email!'; }
+    const wrap = document.getElementById('auth-email-wrap');
+    if (wrap) wrap.innerHTML = '<span style="color:var(--green);font-size:12px">Magic link sent — check your inbox and click the link to sign in.</span>';
+  }
+}
+
+async function handleSignOut() {
+  await signOut();
+  updateAuthUI(null);
+}
+
+window.handleSignIn  = handleSignIn;
+window.handleSignOut = handleSignOut;
+
+// On load: check auth state, pull cloud data if logged in
+onAuthChange(async (event, user) => {
+  updateAuthUI(user);
+  if (user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+    const loaded = await loadFromCloud(refreshAllUI);
+    if (!loaded) refreshAllUI();
+  }
+});
+
+getCurrentUser().then(user => updateAuthUI(user));

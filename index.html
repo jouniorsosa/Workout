@@ -164,6 +164,21 @@
   <button id="rt-dismiss" onclick="dismissTimer()">×</button>
 </div>
 
+<!-- AUTH BAR -->
+<div id="auth-bar">
+  <div id="auth-bar-left">
+    <span id="auth-sync-badge" style="display:none">☁ Synced</span>
+    <span id="auth-status">Checking…</span>
+  </div>
+  <div id="auth-bar-right">
+    <div id="auth-email-wrap" style="display:none">
+      <input id="auth-email-input" type="email" placeholder="your@email.com" />
+      <button id="auth-btn" onclick="handleSignIn()">Send Magic Link</button>
+    </div>
+    <button id="auth-signout" style="display:none" onclick="handleSignOut()">Sign Out</button>
+  </div>
+</div>
+
 <!-- HERO -->
 <div class="hero">
   <div class="hero-tag">Personal Training Program · <span id="profile-tag">Custom Built</span> <button id="edit-profile-btn" onclick="openProfileModal()" title="Edit profile">✏</button></div>

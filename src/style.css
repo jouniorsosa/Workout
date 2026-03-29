@@ -1,3 +1,52 @@
+/* AUTH BAR */
+#auth-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #111;
+  border-bottom: 1px solid #222;
+  padding: 8px 20px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+#auth-bar-left { display: flex; align-items: center; gap: 10px; color: #555; }
+#auth-bar-right { display: flex; align-items: center; gap: 8px; }
+#auth-sync-badge {
+  background: #1a3a2a;
+  color: #3dba74;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+#auth-email-wrap { display: flex; align-items: center; gap: 6px; }
+#auth-email-input {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  color: #f5f0e8;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  width: 180px;
+}
+#auth-btn, #auth-signout {
+  background: #e63022;
+  color: white;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#auth-signout { background: #2a2a2a; color: #888; }
+#auth-signout:hover { color: #f5f0e8; }
+
 :root {
     --black: #0a0a0a;
     --white: #f5f0e8;
