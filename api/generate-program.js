@@ -115,12 +115,22 @@ module.exports = async function handler(req, res) {
 
     const raw = message.content[0].text.trim()
 
-    // Strip markdown code fences if present
-    const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+    // Robustly extract JSON: strip code fences, then find outermost { ... }
+    function extractJSON(text) {
+      // Strip markdown code fences
+      let s = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+      // Find first { and matching last }
+      const start = s.indexOf('{')
+      const end = s.lastIndexOf('}')
+      if (start !== -1 && end !== -1 && end > start) {
+        s = s.slice(start, end + 1)
+      }
+      return s
+    }
 
     let program
     try {
-      program = JSON.parse(jsonStr)
+      program = JSON.parse(extractJSON(raw))
     } catch (parseErr) {
       console.error('[generate-program] JSON parse error:', parseErr.message)
       console.error('[generate-program] Raw response (first 500 chars):', raw.slice(0, 500))
