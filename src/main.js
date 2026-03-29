@@ -1,6 +1,7 @@
 import './style.css';
 import { setItem, setItemSync, getItem, removeItem, loadFromCloud, onAuthChange } from './db.js';
 import { signInWithEmail, signOut, getCurrentUser, signInWithGoogle } from './supabase.js';
+import { generateProgram, getStoredProgram, profileChanged } from './program-generator.js';
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler } from 'chart.js';
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler);
 
@@ -900,6 +901,7 @@ function showPhase(id) {
 
   async function saveProfile() {
     const p = readFormValues();
+    const needsRegen = profileChanged(p);
     applyProfileToUI(p);
     closeProfileModal();
 
@@ -917,6 +919,11 @@ function showPhase(id) {
     }
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 6000);
+
+    // Trigger AI program generation if key profile fields changed
+    if (needsRegen) {
+      triggerProgramGeneration(p);
+    }
   }
 
   function applyProfileToUI(p) {
@@ -987,7 +994,91 @@ function showPhase(id) {
       // First time — apply defaults to show the chip
       applyProfileToUI(getProfile());
     }
+    // Render any stored custom program (after tables initialize)
+    const stored = getStoredProgram();
+    if (stored) setTimeout(() => renderCustomProgram(stored), 700);
   })();
+
+// ══════════════════════════════════════════════════════════════
+// AI PROGRAM RENDERING
+// ══════════════════════════════════════════════════════════════
+
+// Week → phase index (0-based). Weeks 1-4 → phase 0, 5-8 → phase 1, 9-12 → phase 2
+const WEEK_PHASE = { 1:0,2:0,3:0,4:0, 5:1,6:1,7:1,8:1, 9:2,10:2,11:2,12:2 }
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function renderCustomProgram(program) {
+  if (!program || !Array.isArray(program.phases) || program.phases.length === 0) return
+  let replaced = 0
+  for (let wk = 1; wk <= 12; wk++) {
+    const phase = program.phases[WEEK_PHASE[wk]]
+    if (!phase || !phase.days) continue
+    for (const [dayKey, dayData] of Object.entries(phase.days)) {
+      if (!dayData || !Array.isArray(dayData.exercises) || dayData.exercises.length === 0) continue
+      const card = document.getElementById('w' + wk + '-' + dayKey)
+      if (!card) continue
+      const table = card.querySelector('.ex-table')
+      if (!table) continue
+      const rows = dayData.exercises.map(ex =>
+        '<tr>' +
+        '<td>' + escHtml(ex.name) + '</td>' +
+        '<td><span class="sets-badge">' + (parseInt(ex.sets) || 3) + '</span></td>' +
+        '<td><span class="reps-badge">' + escHtml(String(ex.reps)) + '</span></td>' +
+        '<td><span class="rest-badge">' + escHtml(String(ex.rest)) + '</span></td>' +
+        '<td>' + escHtml(ex.notes || '') + '</td>' +
+        '</tr>'
+      ).join('')
+      table.innerHTML =
+        '<tr><th>Exercise</th><th>Sets</th><th>Reps</th><th>Rest</th><th>Notes</th></tr>' + rows
+      delete table.dataset.enhanced
+      replaced++
+    }
+  }
+  if (replaced > 0) {
+    initExerciseTables()
+    setTimeout(() => applyProgramCustomization(loadProfile() || getProfile()), 150)
+  }
+}
+
+function showProgramToast(msg, type) {
+  const toast = document.createElement('div')
+  const bg = type === 'success' ? '#3dba74' : type === 'warn' ? '#e6a820' : '#2c7be5'
+  const color = type === 'warn' ? '#000' : (type === 'success' ? '#000' : '#fff')
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:' + bg + ';color:' + color + ';padding:11px 22px;border-radius:8px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;z-index:99999;max-width:90vw;text-align:center;pointer-events:none;'
+  toast.textContent = msg
+  document.body.appendChild(toast)
+  const duration = type === 'info' ? 10000 : 5000
+  setTimeout(() => toast.remove(), duration)
+  return toast
+}
+
+async function triggerProgramGeneration(profile, closeAfter) {
+  const regenBtn = document.getElementById('pm-regen-btn')
+  if (regenBtn) { regenBtn.disabled = true; regenBtn.textContent = '⟳ Generating…' }
+  showProgramToast('⟳ Generating your personalized program…', 'info')
+  try {
+    const program = await generateProgram(profile)
+    renderCustomProgram(program)
+    showProgramToast('✓ Personalized program applied!', 'success')
+  } catch (err) {
+    console.error('[AI Program]', err)
+    showProgramToast('⚠ Program generation failed — using default program', 'warn')
+  } finally {
+    if (regenBtn) { regenBtn.disabled = false; regenBtn.textContent = '↻ Regenerate My Program' }
+  }
+}
+
+async function regenerateProgram() {
+  const profile = loadProfile() || getProfile()
+  await triggerProgramGeneration(profile)
+}
 
 // Expose functions to global scope for inline onclick handlers
 window.showPhase = showPhase;
@@ -1006,6 +1097,7 @@ window.selectGoal = selectGoal;
 window.updateMacroPreview = updateMacroPreview;
 window.applyProgramCustomization = applyProgramCustomization;
 window.dismissTimer = dismissTimer;
+window.regenerateProgram = regenerateProgram;
 
 // ── Auth UI + Cloud Sync ──────────────────────────────────────────────────────
 
@@ -1016,7 +1108,11 @@ function refreshAllUI() {
   if (p) applyProfileToUI(p); else applyProfileToUI(getProfile());
   initWeekRings();
   setTimeout(initExerciseTables, 200);
-  setTimeout(() => applyProgramCustomization(loadProfile() || getProfile()), 600);
+  setTimeout(() => {
+    applyProgramCustomization(loadProfile() || getProfile());
+    const stored = getStoredProgram();
+    if (stored) renderCustomProgram(stored);
+  }, 600);
 }
 
 function updateAuthUI(user) {
