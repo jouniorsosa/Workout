@@ -1773,3 +1773,153 @@
   .dash-stats-row { grid-template-columns: repeat(2, 1fr); }
   .prog-log-row { flex-wrap: wrap; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   THEME TOGGLE BUTTON
+══════════════════════════════════════════════════════════════ */
+#theme-toggle {
+  margin-left: 8px;
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--gray2);
+  border-radius: 6px;
+  color: var(--muted);
+  padding: 4px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  line-height: 1;
+}
+#theme-toggle:hover {
+  border-color: var(--muted);
+  background: var(--gray);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   STICKY PHASE NAV — UX improvement
+══════════════════════════════════════════════════════════════ */
+.phase-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GLOBAL TRANSITIONS — smooth theme switching
+══════════════════════════════════════════════════════════════ */
+body,
+body *:not(#auth-modal):not(#auth-modal *) {
+  transition:
+    background-color 0.22s ease,
+    color 0.22s ease,
+    border-color 0.22s ease;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LIGHT MODE
+══════════════════════════════════════════════════════════════ */
+body[data-theme="light"] {
+  --black: #f0ebe2;
+  --white: #1a1410;
+  --gray: #ffffff;
+  --gray2: #e0d8cf;
+  --muted: #7a7265;
+  --gold: #a8720a;
+  --green: #1a9e52;
+  --blue: #1a6ab0;
+  color-scheme: light;
+}
+
+/* Auth modal */
+body[data-theme="light"] #auth-modal { background: #f0ebe2; }
+body[data-theme="light"] #auth-modal-brand { border-right-color: #e0d8cf; }
+body[data-theme="light"] .auth-feat-icon { background: #f0ebe2; border-color: #e0d8cf; }
+body[data-theme="light"] .auth-form-label { color: #9a9080; }
+body[data-theme="light"] #auth-modal-email {
+  background: #f8f4ef;
+  border-color: #d5cdc3;
+  color: #1a1410;
+}
+body[data-theme="light"] #auth-modal-email::placeholder { color: #b8b0a8; }
+body[data-theme="light"] .auth-note { color: #b8b0a8; }
+body[data-theme="light"] #auth-modal-skip {
+  border-color: #d5cdc3;
+  color: #9a9080;
+}
+body[data-theme="light"] #auth-modal-skip:hover { color: #1a1410; border-color: #9a9080; }
+body[data-theme="light"] .auth-brand-title { color: #1a1410; }
+body[data-theme="light"] .auth-feature-list li { color: #7a7265; }
+
+/* Auth bar */
+body[data-theme="light"] #auth-bar {
+  background: #e8e2d9;
+  border-bottom-color: #d5cdc3;
+}
+body[data-theme="light"] #auth-bar-left { color: #9a9080; }
+body[data-theme="light"] #auth-signout {
+  border-color: #d5cdc3;
+  color: #9a9080;
+}
+body[data-theme="light"] #auth-signout:hover { color: #1a1410; }
+
+/* Today strip */
+body[data-theme="light"] #today-strip {
+  background: #e8e2d9;
+  border-bottom-color: #d5cdc3;
+}
+body[data-theme="light"] .ts-sep { color: #c8c0b8 !important; }
+
+/* Start modal */
+body[data-theme="light"] #start-modal-box { background: #f8f4ef; }
+body[data-theme="light"] #start-date-input {
+  background: #f0ebe2;
+  border-color: #d5cdc3;
+  color: #1a1410;
+  color-scheme: light;
+}
+
+/* Profile modal */
+body[data-theme="light"] #profile-modal-box { background: #f8f4ef; }
+body[data-theme="light"] .pm-input, body[data-theme="light"] .pm-select {
+  background: #f0ebe2;
+  border-color: #d5cdc3;
+  color: #1a1410;
+  color-scheme: light;
+}
+
+/* Rest timer */
+body[data-theme="light"] #rest-timer {
+  background: #f8f4ef;
+  border-color: #d5cdc3;
+}
+
+/* Week header hover */
+body[data-theme="light"] .week-header:hover { background: #e8e2d9; }
+body[data-theme="light"] .dash-today-card:hover { background: #e8e2d9; }
+
+/* Table borders — invert rgba whites */
+body[data-theme="light"] .ex-table tbody tr {
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+body[data-theme="light"] .meal-slot {
+  border-color: rgba(0,0,0,0.06);
+}
+body[data-theme="light"] .prog-table td { border-bottom-color: #e0d8cf; }
+body[data-theme="light"] .prog-table tr:hover td { background: rgba(0,0,0,0.03); }
+
+/* Badge pill */
+body[data-theme="light"] .badge-pill { border-color: #d5cdc3; }
+
+/* Progress inputs */
+body[data-theme="light"] .prog-input, body[data-theme="light"] .prog-select {
+  background: #f0ebe2;
+  border-color: #d5cdc3;
+  color: #1a1410;
+  color-scheme: light;
+}
+body[data-theme="light"] .export-csv-btn {
+  background: #f0ebe2;
+  border-color: #d5cdc3;
+  color: #1a1410;
+}
+body[data-theme="light"] .export-csv-btn:hover { border-color: var(--gold); color: var(--gold); }

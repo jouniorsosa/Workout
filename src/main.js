@@ -1281,6 +1281,27 @@ window.applyProgramCustomization = applyProgramCustomization;
 window.dismissTimer = dismissTimer;
 window.regenerateProgram = regenerateProgram;
 
+// ── Theme Toggle ──────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+  document.body.setAttribute('data-theme', theme);
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = theme === 'light' ? '☀️' : '🌙';
+}
+
+function toggleTheme() {
+  const current = document.body.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('appTheme', next);
+  applyTheme(next);
+}
+window.toggleTheme = toggleTheme;
+
+// Apply saved theme immediately
+(function() {
+  const saved = localStorage.getItem('appTheme') || 'dark';
+  applyTheme(saved);
+})();
+
 // ── Auth UI + Cloud Sync ──────────────────────────────────────────────────────
 
 function refreshAllUI() {
